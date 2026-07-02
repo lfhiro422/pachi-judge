@@ -1,11 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { JudgeRequest } from "@/lib/types";
 import { judge } from "@/lib/judge-engine";
-import { getRuleDetails } from "@/lib/machines-data";
-
-// 本番実装時: request.headers 等から画像を受け取り、
-// judgeWithClaudeVision(request, ruleDetails) に差し替える想定。
-// 現状は "ダミー判定UI" としてルールベースの judge() を直接使う。
+import { getRuleDetails, getMachineMaster } from "@/lib/machines-data";
+import { judgeWithClaudeVision } from "@/lib/claude";
 
 export async function POST(req: NextRequest) {
   let body: JudgeRequest;
@@ -27,6 +24,20 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  const master = getMachineMaster(body.machineId);
+
+  // ANTHROPIC_API_KEY が設定されていて、かつ画像が送られてきた場合は
+  // Claude Vision APIによる本判定を試みる。失敗した場合は手入力ベースの
+  // ルールエンジンにフォールバックする（本番運用時の安全弁）。
+  if (process.env.ANTHROPIC_API_KEY && body.imageBase64) {
+    try {
+      const result = await judgeWithClaudeVision(body, ruleDetails, master);
+      return NextResponse.json(result);
+    } catch (err) {
+      console.error("Claude Vision judge failed, falling back to rule engine:", err);
+    }
+  }
+
   const result = judge(body);
-  return NextResponse.json(result);
+  return NextResponse.json({ ...result, usedVision: false });
 }
