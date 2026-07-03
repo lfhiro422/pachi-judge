@@ -41,14 +41,18 @@ export type Judgement = "GO" | "STAY" | "STOP";
 export interface JudgeRequestSceneA {
   scene: "A";
   machineId: string;
-  currentCount: number; // 現在のゲーム数 or 機種固有カウンター（あべし等）
+  currentCount: number; // 現在のゲーム数 or 機種固有カウンター（あべし等）。画像から読み取れない場合の手入力フォールバック
   resetLikely: boolean; // リセット恩恵を狙えるか（据え置き濃厚ホールでない等）
+  imageBase64?: string; // 撮影画像（Claude Vision APIが使える場合はこちらを優先して読み取る）
+  imageMediaType?: string; // 例: "image/jpeg"
 }
 
 export interface JudgeRequestSceneB {
   scene: "B";
   machineId: string;
-  exceptionConditionMet: boolean | null; // 即ヤメ厳禁の例外条件に該当するか。null=画像だけでは判断不可
+  exceptionConditionMet: boolean | null; // 即ヤメ厳禁の例外条件に該当するか。null=画像だけでは判断不可（手入力フォールバック）
+  imageBase64?: string;
+  imageMediaType?: string;
 }
 
 export type JudgeRequest = JudgeRequestSceneA | JudgeRequestSceneB;
@@ -59,4 +63,5 @@ export interface JudgeResult {
   referencedRule: string; // 参照したルール（機種ルール詳細のどの行を根拠にしたか）
   estimatedInvestment?: string; // 推定投資額（場面Aのみ）
   nextCheckTiming?: string; // 次の確認タイミング（場面Bのみ）
+  usedVision?: boolean; // trueならClaude Vision APIが画像を読み取って判定した。falseなら手入力によるルールベース判定
 }

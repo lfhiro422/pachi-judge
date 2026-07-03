@@ -13,6 +13,7 @@ export default function Home() {
   const inputRef = useRef<HTMLInputElement>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
+  const [imageFile, setImageFile] = useState<File | null>(null);
 
   const [scene, setScene] = useState<Scene>("A");
   const [machines, setMachines] = useState<MachineMaster[]>([]);
@@ -36,6 +37,7 @@ export default function Home() {
     const file = e.target.files?.[0];
     if (!file) return;
     setFileName(file.name);
+    setImageFile(file);
     const url = URL.createObjectURL(file);
     setPreviewUrl((prev) => {
       if (prev) URL.revokeObjectURL(prev);
@@ -44,28 +46,59 @@ export default function Home() {
     setResult(null);
   }
 
+  function fileToBase64(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result as string;
+        // "data:image/jpeg;base64,xxxxx" の先頭部分を取り除く
+        resolve(result.split(",")[1] ?? "");
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
   function handleReset() {
     if (previewUrl) URL.revokeObjectURL(previewUrl);
     setPreviewUrl(null);
     setFileName(null);
+    setImageFile(null);
     setResult(null);
     if (inputRef.current) inputRef.current.value = "";
   }
 
   async function handleJudge() {
-    // 注意: 現時点では撮影画像はまだAIに送っていない（次のマイルストーンでClaude Vision APIに接続予定）。
-    // 画像から機種名・現在の数値を自動で読み取る前段として、ここでは手入力の内容だけで判定する。
+    // 撮影画像をbase64化してAPIに送る。ANTHROPIC_API_KEYが設定されていれば
+    // サーバー側でClaude Vision APIが画像を読み取って判定し、
+    // 未設定の場合は下の手入力の内容を使ったルールベース判定にフォールバックする。
     setJudging(true);
     setResult(null);
     try {
+      let imageBase64: string | undefined;
+      let imageMediaType: string | undefined;
+      if (imageFile) {
+        imageBase64 = await fileToBase64(imageFile);
+        imageMediaType = imageFile.type || "image/jpeg";
+      }
+
       const body =
         scene === "A"
-          ? { scene: "A", machineId, currentCount, resetLikely: false }
+          ? {
+              scene: "A",
+              machineId,
+              currentCount,
+              resetLikely: false,
+              imageBase64,
+              imageMediaType,
+            }
           : {
               scene: "B",
               machineId,
               exceptionConditionMet:
                 exceptionAnswer === "yes" ? true : exceptionAnswer === "no" ? false : null,
+              imageBase64,
+              imageMediaType,
             };
 
       const res = await fetch("/api/judge", {
@@ -199,8 +232,8 @@ export default function Home() {
             <p className="text-xs text-gray-400 truncate w-full text-center">{fileName}</p>
           )}
 
-          <p className="text-xs text-amber-600 bg-amber-50 rounded-xl px-4 py-2 w-full text-center">
-            現在は画像からの自動読み取り（Claude Vision API）は未接続のため、下記を手入力してください
+          <p className="text-xs text-blue-600 bg-blue-50 rounded-xl px-4 py-2 w-full text-center">
+            AIが写真からゲーム数などを自動で読み取ります。うまく読み取れない場合は下記の手入力が使われます
           </p>
 
           {/* 機種・状況の入力 */}
@@ -212,7 +245,7 @@ export default function Home() {
             {scene === "A" ? (
               <div className="flex flex-col gap-2">
                 <label className="text-sm text-gray-500" htmlFor="count">
-                  現在のカウンター（ゲーム数など）
+                  現在のカウンター（ゲーム数など）※AIが読み取れない場合の参考値
                 </label>
                 <input
                   id="count"
@@ -226,7 +259,7 @@ export default function Home() {
             ) : (
               <div className="flex flex-col gap-2">
                 <p className="text-sm text-gray-500">
-                  即ヤメ厳禁の例外条件に、今の状況は当てはまりますか？
+                  即ヤメ厳禁の例外条件に、今の状況は当てはまりますか？※AIが読み取れない場合の参考値
                 </p>
                 {(
                   [
@@ -274,6 +307,17 @@ export default function Home() {
             <div className="w-full flex flex-col gap-4">
               <SignalLight judgement={result.judgement} />
               <div className="w-full flex flex-col gap-3 text-sm bg-white rounded-2xl p-5 shadow border border-gray-100">
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`text-xs font-semibold px-2 py-1 rounded-full ${
+                      result.usedVision
+                        ? "bg-blue-100 text-blue-700"
+                        : "bg-gray-100 text-gray-500"
+                    }`}
+                  >
+                    {result.usedVision ? "AIが写真を読み取って判定" : "手入力の内容で判定"}
+                  </span>
+                </div>
                 <div>
                   <p className="text-gray-400">理由</p>
                   <p className="text-gray-800">{result.reason}</p>
