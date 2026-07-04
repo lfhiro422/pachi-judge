@@ -173,10 +173,7 @@ export default function AddMachinePage() {
         </div>
       )}
 
-      <p className="mt-10 text-xs text-neutral-400">
-        注意: このページには認証がありません。公開デプロイでは Vercel の Deployment
-        Protection、または簡易パスワードチェックを追加してから使ってください。
-      </p>
+     
     </main>
   );
 }
