@@ -1,34 +1,64 @@
+/**
+ * lib/sheets.ts
+ * Google Sheets API を使った読み書き処理
+ */
+import { google } from "googleapis";
 import { MachineMaster, MachineRuleDetail } from "./types";
 import { machineMasters, machineRuleDetails } from "./machines-data";
 
-// ------------------------------------------------------------------
-// TODO（次のマイルストーン）: Google Sheets API 連携の本実装
-//
-// 対象スプレッドシート:
-//   https://docs.google.com/spreadsheets/d/1Dxi3RWtjePPUGTpdKI5e_ORFLh2FMllFxkzVp0FJAnA/edit
-//   タブ「機種マスタ」「機種ルール詳細」を読む。
-//
-// 実装方針:
-//   1. Google Cloud でサービスアカウントを作成し、対象シートを「閲覧者」として共有する
-//   2. 環境変数に以下を設定（Vercelの場合はプロジェクト設定 > Environment Variables）
-//        GOOGLE_SERVICE_ACCOUNT_EMAIL
-//        GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY   ( \n は文字列のまま保存し、コード側で置換する )
-//        GOOGLE_SHEETS_SPREADSHEET_ID
-//   3. `npm install googleapis` を追加
-//   4. 下記関数の中身を、Sheets API `spreadsheets.values.get` に置き換える
-//      （行→MachineMaster / MachineRuleDetail への変換だけ行えばよく、
-//        呼び出し側 [app/api/machines, lib/judge-engine.ts] は変更不要）
-//
-// 現時点ではダミーデータ（lib/machines-data.ts = スプレッドシートの内容を転記したもの）を
-// そのまま返すことで、UI・API・判定ロジックを先に完成させられるようにしている。
-// ------------------------------------------------------------------
+const SPREADSHEET_ID = process.env.GOOGLE_SHEETS_SPREADSHEET_ID!;
+
+function getSheetsClient() {
+  const auth = new google.auth.JWT({
+    email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
+    key: (process.env.GOOGLE_PRIVATE_KEY || "").replace(/\\n/g, "\n"),
+    scopes: ["https://www.googleapis.com/auth/spreadsheets"],
+  });
+  return google.sheets({ version: "v4", auth });
+}
+
+/**
+ * 指定シートの末尾に行を追記する
+ * @param sheetName "機種マスタ" | "機種ルール詳細"
+ * @param rows 1行 = 1配列。複数行まとめて渡せる
+ */
+export async function appendRows(
+  sheetName: string,
+  rows: (string | number)[][]
+): Promise<void> {
+  const sheets = getSheetsClient();
+  await sheets.spreadsheets.values.append({
+    spreadsheetId: SPREADSHEET_ID,
+    range: `${sheetName}!A:A`,
+    valueInputOption: "USER_ENTERED",
+    insertDataOption: "INSERT_ROWS",
+    requestBody: {
+      values: rows,
+    },
+  });
+}
+
+/**
+ * 「機種マスタ」シートのA列(機種ID)に、指定の機種IDが既に存在するか確認する
+ */
+export async function machineIdExists(machineId: string): Promise<boolean> {
+  const sheets = getSheetsClient();
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId: SPREADSHEET_ID,
+    range: "機種マスタ!A:A",
+  });
+  const rows = res.data.values ?? [];
+  return rows.some((row) => row[0] === machineId);
+}
+
+// --- 以下は既存の読み取り処理(暫定：静的データ参照のまま) ---
 
 export async function fetchMachineMasters(): Promise<MachineMaster[]> {
-  // TODO: Sheets API の "機種マスタ" タブを取得して MachineMaster[] に変換する
+  // TODO: Sheets APIから読み込む処理に置き換える
   return machineMasters;
 }
 
 export async function fetchMachineRuleDetails(): Promise<MachineRuleDetail[]> {
-  // TODO: Sheets API の "機種ルール詳細" タブを取得して MachineRuleDetail[] に変換する
+  // TODO: Sheets APIから読み込む処理に置き換える
   return machineRuleDetails;
 }
