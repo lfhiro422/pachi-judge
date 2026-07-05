@@ -51,14 +51,79 @@ export async function machineIdExists(machineId: string): Promise<boolean> {
   return rows.some((row) => row[0] === machineId);
 }
 
-// --- 以下は既存の読み取り処理(暫定：静的データ参照のまま) ---
+// --- 以下、実際にGoogle Sheetsから読み込む処理 ---
+// 失敗時（認証情報未設定・API障害等）はビルドやローカル開発を壊さないよう、
+// lib/machines-data.ts のフォールバックデータへ自動的に切り替える。
+
+function toBool(value: string | undefined): boolean {
+  return value === "あり";
+}
+
+function toNumberOrUndefined(value: string | undefined): number | undefined {
+  if (!value) return undefined;
+  const n = parseFloat(value.replace("%", ""));
+  return Number.isNaN(n) ? undefined : n;
+}
 
 export async function fetchMachineMasters(): Promise<MachineMaster[]> {
-  // TODO: Sheets APIから読み込む処理に置き換える
-  return machineMasters;
+  try {
+    const sheets = getSheetsClient();
+    const res = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: "機種マスタ!A2:N",
+    });
+    const rows = res.data.values ?? [];
+    if (rows.length === 0) return machineMasters; // シートが空ならフォールバック
+
+    return rows
+      .filter((row) => row[0]) // 機種IDが空の行は無視
+      .map((row): MachineMaster => ({
+        machineId: row[0],
+        machineName: row[1] ?? "",
+        maker: row[2] ?? "",
+        releaseDate: row[3] ?? "要確認",
+        machineType: row[4] ?? "AT機",
+        hasCeiling: toBool(row[5]),
+        hasZone: toBool(row[6]),
+        hasOwnPoint: toBool(row[7]),
+        payoutSetting1: toNumberOrUndefined(row[8]),
+        payoutSetting6: toNumberOrUndefined(row[9]),
+        baseQuitTiming: row[10] ?? "",
+        lastConfirmedAt: row[11] ?? "",
+        sourceMemo: row[12] ?? "",
+        notes: row[13] ?? "",
+      }));
+  } catch (err) {
+    console.error("fetchMachineMasters: falling back to local data.", err);
+    return machineMasters;
+  }
 }
 
 export async function fetchMachineRuleDetails(): Promise<MachineRuleDetail[]> {
-  // TODO: Sheets APIから読み込む処理に置き換える
-  return machineRuleDetails;
+  try {
+    const sheets = getSheetsClient();
+    const res = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: "機種ルール詳細!A2:I",
+    });
+    const rows = res.data.values ?? [];
+    if (rows.length === 0) return machineRuleDetails;
+
+    return rows
+      .filter((row) => row[0])
+      .map((row): MachineRuleDetail => ({
+        machineId: row[0],
+        // row[1] は「機種名(参照用)」列。型には持たないため読み捨てる。
+        category: (row[2] ?? "やめ時") as MachineRuleDetail["category"],
+        itemName: row[3] ?? "",
+        thresholdRaw: row[4] ?? "",
+        triggerCondition: row[5] ?? "",
+        benefit: row[6] ?? "",
+        targetMemo: row[7] ?? "",
+        notes: row[8] ?? "",
+      }));
+  } catch (err) {
+    console.error("fetchMachineRuleDetails: falling back to local data.", err);
+    return machineRuleDetails;
+  }
 }

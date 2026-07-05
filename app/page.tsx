@@ -28,6 +28,9 @@ export default function Home() {
   const [judgeError, setJudgeError] = useState<string | null>(null);
   const [retryNotice, setRetryNotice] = useState<string | null>(null);
 
+  const [identifying, setIdentifying] = useState(false);
+  const [identifiedNotice, setIdentifiedNotice] = useState<string | null>(null);
+
   useEffect(() => {
     fetch("/api/machines")
       .then((r) => r.json())
@@ -37,7 +40,7 @@ export default function Home() {
       });
   }, []);
 
-  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
     setFileName(file.name);
@@ -48,6 +51,43 @@ export default function Home() {
       return url;
     });
     setResult(null);
+    setIdentifiedNotice(null);
+
+    // 写真からの機種自動認識（補助機能）。失敗しても手動選択で続行できるようにする。
+    setIdentifying(true);
+    try {
+      const compressed = await compressImageToBase64(file, 800, 0.6);
+      const res = await fetch("/api/identify-machine", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          imageBase64: compressed.base64,
+          imageMediaType: compressed.mediaType,
+        }),
+      });
+      if (res.ok) {
+        const data = (await res.json()) as {
+          matchedMachineId: string | null;
+          detectedText: string;
+          confidence: "high" | "low";
+        };
+        if (data.matchedMachineId && data.confidence === "high") {
+          setMachineId(data.matchedMachineId);
+          const matched = machines.find((m) => m.machineId === data.matchedMachineId);
+          setIdentifiedNotice(
+            `AIが「${matched?.machineName ?? data.detectedText}」を検出し、自動選択しました（違う場合は選び直してください）`
+          );
+        } else if (data.detectedText) {
+          setIdentifiedNotice(
+            `機種名の自動認識に自信が持てませんでした（読み取り候補: 「${data.detectedText}」）。機種を確認して選び直してください`
+          );
+        }
+      }
+    } catch {
+      // 自動認識の失敗は無視。手動選択のフローに影響させない。
+    } finally {
+      setIdentifying(false);
+    }
   }
 
   function handleReset() {
@@ -58,6 +98,8 @@ export default function Home() {
     setResult(null);
     setJudgeError(null);
     setRetryNotice(null);
+    setIdentifiedNotice(null);
+    setIdentifying(false);
     if (inputRef.current) inputRef.current.value = "";
   }
 
@@ -252,6 +294,16 @@ export default function Home() {
 
           {/* 機種・状況の入力 */}
           <div className="w-full flex flex-col gap-4 bg-white rounded-2xl p-5 shadow border border-gray-100">
+            {identifying && (
+              <p className="text-xs text-gray-500 bg-gray-50 rounded-xl px-4 py-2 text-center">
+                写真から機種名を自動認識しています…
+              </p>
+            )}
+            {identifiedNotice && !identifying && (
+              <p className="text-xs text-blue-700 bg-blue-50 rounded-xl px-4 py-2 text-center">
+                {identifiedNotice}
+              </p>
+            )}
             {machines.length > 0 && (
               <MachineSelect machines={machines} value={machineId} onChange={setMachineId} />
             )}

@@ -107,6 +107,111 @@ function parseJudgeResponse(
   };
 }
 
+// ------------------------------------------------------------------
+// 機種名の自動認識
+//
+// データカウンター上部のパネルや台のパネル部分に表示されている機種名を読み取り、
+// 機種マスタ（スプレッドシート由来のリスト）の中から一致するものを選ばせる。
+// 一般知識で機種を推測させるのではなく、あくまで「画像中の文字列」と
+// 「与えられたリストの機種名」の照合に限定することで、
+// リストにない機種を誤って存在するかのように答えることを防ぐ。
+// ------------------------------------------------------------------
+
+const IDENTIFY_SYSTEM_PROMPT = `あなたはパチスロ台の写真から機種名を読み取るアシスタントです。
+以下のルールを厳密に守ってください。
+
+1. 画像内の、データカウンター上部パネルの機種名表示、または台上部・腰部のパネル装飾に
+   書かれている文字列から機種名を読み取ってください。
+2. 読み取った機種名を、ユーザーメッセージ内の「登録済み機種リスト」と照合してください。
+   リストに無い機種だと判断した場合や、画像から機種名を確信を持って読み取れない場合は、
+   絶対に無理にリストの中から選ばないでください。
+3. リストに存在しない機種名を、あなたの一般知識で補って回答することは絶対にしないでください。
+   このシステムの目的は「画像の文字とリストの突き合わせ」だけです。
+4. 出力は必ず次のJSON形式のみで返してください。前置き・説明文・Markdownのコードフェンスは不要です。
+{
+  "matchedMachineId": "登録済み機種リストのIDのいずれか。確信が持てない場合はnull",
+  "detectedText": "画像から読み取れた機種名らしき文字列（読み取れない場合は空文字）",
+  "confidence": "high" | "low"
+}`;
+
+export interface IdentifyMachineResult {
+  matchedMachineId: string | null;
+  detectedText: string;
+  confidence: "high" | "low";
+}
+
+export async function identifyMachineFromImage(
+  imageBase64: string,
+  imageMediaType: string,
+  candidates: MachineMaster[]
+): Promise<IdentifyMachineResult> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    throw new Error("ANTHROPIC_API_KEY is not set");
+  }
+
+  const anthropic = new Anthropic({ apiKey });
+
+  const listText = candidates
+    .map((m) => `- ID: ${m.machineId} / 機種名: ${m.machineName}`)
+    .join("\n");
+
+  const message = await anthropic.messages.create({
+    model: "claude-sonnet-4-6",
+    max_tokens: 300,
+    system: IDENTIFY_SYSTEM_PROMPT,
+    messages: [
+      {
+        role: "user",
+        content: [
+          {
+            type: "image",
+            source: {
+              type: "base64",
+              media_type: imageMediaType as
+                | "image/jpeg"
+                | "image/png"
+                | "image/gif"
+                | "image/webp",
+              data: imageBase64,
+            },
+          },
+          {
+            type: "text",
+            text: `登録済み機種リスト:\n${listText}\n\n画像を見て、機種名を判定しJSON形式のみで返してください。`,
+          },
+        ],
+      },
+    ],
+  });
+
+  const textBlock = message.content.find((b) => b.type === "text");
+  if (!textBlock || textBlock.type !== "text") {
+    return { matchedMachineId: null, detectedText: "", confidence: "low" };
+  }
+
+  try {
+    const cleaned = textBlock.text.replace(/```json|```/g, "").trim();
+    const parsed = JSON.parse(cleaned) as {
+      matchedMachineId: string | null;
+      detectedText?: string;
+      confidence?: string;
+    };
+    const matchedId =
+      parsed.matchedMachineId &&
+      candidates.some((c) => c.machineId === parsed.matchedMachineId)
+        ? parsed.matchedMachineId
+        : null;
+    return {
+      matchedMachineId: matchedId,
+      detectedText: parsed.detectedText ?? "",
+      confidence: parsed.confidence === "high" ? "high" : "low",
+    };
+  } catch {
+    return { matchedMachineId: null, detectedText: "", confidence: "low" };
+  }
+}
+
 export async function judgeWithClaudeVision(
   request: JudgeRequest,
   ruleDetails: MachineRuleDetail[],
