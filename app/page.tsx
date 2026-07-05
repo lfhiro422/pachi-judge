@@ -5,6 +5,8 @@ import Image from "next/image";
 import MachineSelect from "@/components/MachineSelect";
 import SignalLight from "@/components/SignalLight";
 import { JudgeResult, MachineMaster } from "@/lib/types";
+import { compressImageToBase64 } from "@/lib/image";
+import { fetchWithRetry, FetchTimeoutError } from "@/lib/fetchWithRetry";
 
 type Scene = "A" | "B";
 type ExceptionAnswer = "yes" | "no" | "unknown";
@@ -23,6 +25,8 @@ export default function Home() {
 
   const [result, setResult] = useState<JudgeResult | null>(null);
   const [judging, setJudging] = useState(false);
+  const [judgeError, setJudgeError] = useState<string | null>(null);
+  const [retryNotice, setRetryNotice] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/machines")
@@ -46,40 +50,33 @@ export default function Home() {
     setResult(null);
   }
 
-  function fileToBase64(file: File): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const result = reader.result as string;
-        // "data:image/jpeg;base64,xxxxx" の先頭部分を取り除く
-        resolve(result.split(",")[1] ?? "");
-      };
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
-  }
-
   function handleReset() {
     if (previewUrl) URL.revokeObjectURL(previewUrl);
     setPreviewUrl(null);
     setFileName(null);
     setImageFile(null);
     setResult(null);
+    setJudgeError(null);
+    setRetryNotice(null);
     if (inputRef.current) inputRef.current.value = "";
   }
 
   async function handleJudge() {
-    // 撮影画像をbase64化してAPIに送る。ANTHROPIC_API_KEYが設定されていれば
-    // サーバー側でClaude Vision APIが画像を読み取って判定し、
+    // 撮影画像を圧縮してからAPIに送る。ホールの弱い電波でも詰まりにくくするため、
+    // ①アップロード前にリサイズ・圧縮、②タイムアウト＋自動リトライ付きfetchを使う。
+    // ANTHROPIC_API_KEYが設定されていればサーバー側でClaude Vision APIが画像を読み取って判定し、
     // 未設定の場合は下の手入力の内容を使ったルールベース判定にフォールバックする。
     setJudging(true);
     setResult(null);
+    setJudgeError(null);
+    setRetryNotice(null);
     try {
       let imageBase64: string | undefined;
       let imageMediaType: string | undefined;
       if (imageFile) {
-        imageBase64 = await fileToBase64(imageFile);
-        imageMediaType = imageFile.type || "image/jpeg";
+        const compressed = await compressImageToBase64(imageFile);
+        imageBase64 = compressed.base64;
+        imageMediaType = compressed.mediaType;
       }
 
       const body =
@@ -101,15 +98,32 @@ export default function Home() {
               imageMediaType,
             };
 
-      const res = await fetch("/api/judge", {
+      const res = await fetchWithRetry("/api/judge", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
+        retries: 2,
+        timeoutMs: 15000,
+        onRetry: (attempt) => setRetryNotice(`通信が不安定です。再試行しています…（${attempt}回目）`),
       });
+
+      if (!res.ok) {
+        throw new Error(`判定に失敗しました (HTTP ${res.status})`);
+      }
+
       const data = await res.json();
       setResult(data);
+    } catch (err) {
+      if (err instanceof FetchTimeoutError) {
+        setJudgeError("通信がタイムアウトしました。電波の良い場所で「再試行」を押してください。");
+      } else if (err instanceof Error) {
+        setJudgeError(`通信エラーが発生しました：${err.message}`);
+      } else {
+        setJudgeError("不明なエラーが発生しました。もう一度お試しください。");
+      }
     } finally {
       setJudging(false);
+      setRetryNotice(null);
     }
   }
 
@@ -302,6 +316,25 @@ export default function Home() {
             </svg>
             {judging ? "判定中…" : "判定する"}
           </button>
+
+          {judging && retryNotice && (
+            <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-4 py-2 w-full text-center">
+              {retryNotice}
+            </p>
+          )}
+
+          {judgeError && !judging && (
+            <div className="w-full flex flex-col items-center gap-3 bg-red-50 border border-red-200 rounded-2xl p-4">
+              <p className="text-sm text-red-700 text-center">{judgeError}</p>
+              <button
+                onClick={handleJudge}
+                disabled={!machineId}
+                className="py-2.5 px-6 rounded-xl bg-red-600 text-white text-sm font-semibold active:scale-95 transition-transform disabled:opacity-50"
+              >
+                再試行
+              </button>
+            </div>
+          )}
 
           {result && (
             <div className="w-full flex flex-col gap-4">
