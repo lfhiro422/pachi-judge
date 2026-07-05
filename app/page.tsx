@@ -5,7 +5,7 @@ import Image from "next/image";
 import MachineSelect from "@/components/MachineSelect";
 import SignalLight from "@/components/SignalLight";
 import { JudgeResult, MachineMaster } from "@/lib/types";
-import { compressImageToBase64 } from "@/lib/image";
+import { compressImageToBase64, CompressedImage } from "@/lib/image";
 import { fetchWithRetry, FetchTimeoutError } from "@/lib/fetchWithRetry";
 
 type Scene = "A" | "B";
@@ -16,6 +16,7 @@ export default function Home() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
+  const [compressedImage, setCompressedImage] = useState<CompressedImage | null>(null);
 
   const [scene, setScene] = useState<Scene>("A");
   const [machines, setMachines] = useState<MachineMaster[]>([]);
@@ -52,11 +53,15 @@ export default function Home() {
     });
     setResult(null);
     setIdentifiedNotice(null);
+    setCompressedImage(null);
 
     // 写真からの機種自動認識（補助機能）。失敗しても手動選択で続行できるようにする。
+    // 機種名はデータカウンター上部パネルの小さな文字で表示されることが多いため、
+    // 判定用より高めの解像度で圧縮し、判定時にもこの画像を使い回す（二重圧縮を避ける）。
     setIdentifying(true);
     try {
-      const compressed = await compressImageToBase64(file, 800, 0.6);
+      const compressed = await compressImageToBase64(file, 1600, 0.8);
+      setCompressedImage(compressed);
       const res = await fetch("/api/identify-machine", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -95,6 +100,7 @@ export default function Home() {
     setPreviewUrl(null);
     setFileName(null);
     setImageFile(null);
+    setCompressedImage(null);
     setResult(null);
     setJudgeError(null);
     setRetryNotice(null);
@@ -115,7 +121,11 @@ export default function Home() {
     try {
       let imageBase64: string | undefined;
       let imageMediaType: string | undefined;
-      if (imageFile) {
+      if (compressedImage) {
+        // 機種自動認識のために既に圧縮済みなので、再圧縮せずそのまま使い回す
+        imageBase64 = compressedImage.base64;
+        imageMediaType = compressedImage.mediaType;
+      } else if (imageFile) {
         const compressed = await compressImageToBase64(imageFile);
         imageBase64 = compressed.base64;
         imageMediaType = compressed.mediaType;
@@ -404,47 +414,4 @@ export default function Home() {
                   </span>
                 </div>
                 <div>
-                  <p className="text-gray-400">理由</p>
-                  <p className="text-gray-800">{result.reason}</p>
-                </div>
-                <div>
-                  <p className="text-gray-400">参照したルール</p>
-                  <p className="text-gray-800 text-xs">{result.referencedRule}</p>
-                </div>
-                {result.estimatedInvestment && (
-                  <div>
-                    <p className="text-gray-400">推定投資額</p>
-                    <p className="text-gray-800">{result.estimatedInvestment}</p>
-                  </div>
-                )}
-                {result.nextCheckTiming && (
-                  <div>
-                    <p className="text-gray-400">次の確認タイミング</p>
-                    <p className="text-gray-800">{result.nextCheckTiming}</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          <button
-            onClick={handleReset}
-            className="w-full max-w-xs py-3 px-6 rounded-2xl border-2 border-gray-300 text-gray-600 text-base font-medium active:scale-95 transition-transform flex items-center justify-center gap-2"
-          >
-            <svg
-              className="w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={2}
-              viewBox="0 0 24 24"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 0 1 5.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 0 0-1.134-.175 2.31 2.31 0 0 1-1.64-1.055l-.822-1.316a2.192 2.192 0 0 0-1.736-1.039 48.774 48.774 0 0 0-5.232 0 2.192 2.192 0 0 0-1.736 1.039l-.821 1.316Z" />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0ZM18.75 10.5h.008v.008h-.008V10.5Z" />
-            </svg>
-            撮り直す
-          </button>
-        </div>
-      )}
-    </main>
-  );
-}
+                  <p
