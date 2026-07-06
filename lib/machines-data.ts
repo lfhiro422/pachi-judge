@@ -306,6 +306,37 @@ export const machineMasters: MachineMaster[] = [
     notes:
       "ゲーム数天井（996G+α）と周期天井（最大6周期）の2種類。1周期目150G・2周期目300Gで自動到達する独自の周期システム。設定変更時・ST駆け抜け後・景之ST後は596G+α・4周期に短縮",
   },
+  {
+    machineId: "karakurisaakasu_2023",
+    machineName: "パチスロ からくりサーカス",
+    maker: "SANKYO",
+    releaseDate: "2023-07-03",
+    machineType: "AT機",
+    hasCeiling: true,
+    hasZone: true,
+    hasOwnPoint: false,
+    baseQuitTiming: "幕間チャンス後1G回してワイプ画面（規定ゲーム数示唆）を確認してからヤメ",
+    lastConfirmedAt: "2026-07-06",
+    sourceMemo: "chonborista.com / p-town.dmm.com / p-world.co.jp / haienakun.com / altema.jp 等",
+    notes:
+      "ゲーム数天井1200G。前回液晶1100G以上での当選なら次回天井が最大300Gに短縮。上位AT終了後は約40%で天国移行（天井100G）。導入台数が多く解析情報も豊富な定番機",
+  },
+  {
+    machineId: "kinnikuman_7akuma_2023",
+    machineName: "スマスロ キン肉マン 7人の悪魔超人編",
+    maker: "山佐",
+    releaseDate: "2023-08-07",
+    machineType: "AT機",
+    hasCeiling: true,
+    hasZone: true,
+    hasOwnPoint: true,
+    baseQuitTiming:
+      "天井到達率が高くゾーンでの当選率上昇もほぼ無いため、示唆がなければAT終了後は原則即ヤメ",
+    lastConfirmedAt: "2026-07-06",
+    sourceMemo: "chonborista.com / slopachi-quest.com / note(たられば) / itikatu.jp 等",
+    notes:
+      "超人パワー1000万到達（実ゲーム数平均600G前後）でAT当選。モードにより天井ゲーム数が変動（モードA1000G/モードB900G/チャンス300G）。設定変更後はチャンスモード選択率が約25%に優遇",
+  },
 ];
 
 export const machineRuleDetails: MachineRuleDetail[] = [
@@ -1204,6 +1235,90 @@ export const machineRuleDetails: MachineRuleDetail[] = [
     benefit: "カバネポイントが溜まっていなければ即ヤメでよい",
     targetMemo: "",
     notes: "サブ液晶背景の桜/海門城表示があればフォロー推奨",
+  },
+
+  // --- パチスロ からくりサーカス ---
+  {
+    machineId: "karakurisaakasu_2023",
+    category: "天井",
+    itemName: "ゲーム数天井",
+    thresholdRaw: "1200G",
+    triggerCondition: "通常時ゲーム数消化",
+    benefit: "CZ「機械仕掛けの神」以上当選",
+    targetMemo: "0G〜（スルー回数が増えるごとに狙い目が浅くなる）",
+    notes: "",
+  },
+  {
+    machineId: "karakurisaakasu_2023",
+    category: "リセット恩",
+    itemName: "前回当選G数による天井短縮",
+    thresholdRaw: "最大300Gに短縮",
+    triggerCondition: "前回の当選が液晶1100G以上（データカウンタ目安800G以上）",
+    benefit: "次回天井ゲーム数の大幅短縮",
+    targetMemo: "",
+    notes: "",
+  },
+  {
+    machineId: "karakurisaakasu_2023",
+    category: "ゾーン",
+    itemName: "天国モード天井",
+    thresholdRaw: "100G",
+    triggerCondition: "上位AT「超からくりサーカス」終了後、約40%で天国移行",
+    benefit: "100G以内でCZ当選",
+    targetMemo: "",
+    notes: "データカウンターの文字色がピンクなら天国濃厚",
+  },
+  {
+    machineId: "karakurisaakasu_2023",
+    category: "やめ時",
+    itemName: "幕間チャンス後のワイプ確認",
+    thresholdRaw: "1G",
+    triggerCondition: "幕間チャンス終了後",
+    benefit: "ワイプ画面で規定ゲーム数の示唆を確認できる",
+    targetMemo: "",
+    notes: "しろがね（シルエット/アップ）示唆が出ている場合はCZ当選までフォロー",
+  },
+
+  // --- スマスロ キン肉マン 7人の悪魔超人編 ---
+  {
+    machineId: "kinnikuman_7akuma_2023",
+    category: "天井",
+    itemName: "超人パワー天井",
+    thresholdRaw: "1000万パワー（実ゲーム数平均約600G）",
+    triggerCondition: "通常時1Gあたり1万パワー獲得での累積、モードにより変動",
+    benefit: "AT「7人の悪魔超人」当選",
+    targetMemo: "等価660G〜",
+    notes: "モードA1000G・モードB900G・チャンス300Gが目安の天井ゲーム数",
+  },
+  {
+    machineId: "kinnikuman_7akuma_2023",
+    category: "リセット恩",
+    itemName: "設定変更時チャンスモード優遇",
+    thresholdRaw: "チャンスモード選択率約25%",
+    triggerCondition: "設定変更",
+    benefit: "天井ゲーム数が浅いチャンスモードへの移行優遇",
+    targetMemo: "",
+    notes: "",
+  },
+  {
+    machineId: "kinnikuman_7akuma_2023",
+    category: "独自pt",
+    itemName: "超人パワー上乗せゾーン",
+    thresholdRaw: "正義超人チャレンジ（平均144万パワー）/正義超人アタック（平均1029万パワー）",
+    triggerCondition: "AT中の抽選で突入",
+    benefit: "超人パワーの大量獲得（天井到達を早める）",
+    targetMemo: "",
+    notes: "",
+  },
+  {
+    machineId: "kinnikuman_7akuma_2023",
+    category: "やめ時",
+    itemName: "AT終了後の即ヤメ判断",
+    thresholdRaw: "-",
+    triggerCondition: "AT終了後、モード示唆等がない場合",
+    benefit: "-",
+    targetMemo: "",
+    notes: "天井到達率が高くゾーンでの当選率上昇もほぼ無いため、原則即ヤメでよい機種",
   },
 ];
 
