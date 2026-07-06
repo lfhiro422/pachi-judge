@@ -385,6 +385,38 @@ export const machineMasters: MachineMaster[] = [
     notes:
       "ゲーム数天井999G（600Gに期待度50%の仮天井あり）。設定変更時・SR終了時は536G+αに短縮。GBスルー天井（8スルー後9回目で確定）と不屈ポイント（50pt到達でCZ突破確定）の独自システムを搭載",
   },
+  {
+    machineId: "tekken6_2026",
+    machineName: "スマスロ鉄拳6",
+    maker: "山佐",
+    releaseDate: "2026-01-05",
+    machineType: "AT機",
+    hasCeiling: true,
+    hasZone: true,
+    hasOwnPoint: true,
+    baseQuitTiming:
+      "AT終了後は引き戻し状態（99pt以内）になっているか確認してからヤメ。即ヤメされている台の引き戻し＆100ptでの天国も判別要素",
+    lastConfirmedAt: "2026-07-06",
+    sourceMemo: "slopachi-quest.com / p-town.dmm.com / chonborista.com / 1geki.jp 等",
+    notes:
+      "鉄拳ポイント天井（モードにより変動、最大500pt+α）。設定変更時は最大500pt+αに短縮。100pt/300pt/500ptにゾーンあり。7種類の内部モードで天井・ゾーンが変化する複合型",
+  },
+  {
+    machineId: "toaru_railgun2_2025",
+    machineName: "スマスロ とある科学の超電磁砲2",
+    maker: "藤商事",
+    releaseDate: "2025-11-04",
+    machineType: "AT機",
+    hasCeiling: true,
+    hasZone: true,
+    hasOwnPoint: false,
+    baseQuitTiming:
+      "AT終了後、100Gのゾーンは約25%でCZ天井のためフォロー価値あり。高確状態（超電磁砲コインが成立しやすい）ならフォロー推奨",
+    lastConfirmedAt: "2026-07-06",
+    sourceMemo: "slopachi-quest.com / chonborista.com / haienakun.com / note(たられば) / p-world.co.jp 等",
+    notes:
+      "ゲーム数天井999G+α（設定変更後699G+αに短縮）。モード別天井（通常A999G/B・C699G/D299G/E199G）で変動。AT後500Gのゾーンが強い（期待度約40%）",
+  },
 ];
 
 export const machineRuleDetails: MachineRuleDetail[] = [
@@ -1513,6 +1545,90 @@ export const machineRuleDetails: MachineRuleDetail[] = [
     benefit: "-",
     targetMemo: "",
     notes: "継続率70%以上のCZ失敗時・特定終了画面示唆時は即ヤメ厳禁",
+  },
+
+  // --- スマスロ鉄拳6 ---
+  {
+    machineId: "tekken6_2026",
+    category: "天井",
+    itemName: "鉄拳ポイント天井",
+    thresholdRaw: "最大500pt+α（モードにより変動）",
+    triggerCondition: "毎ゲーム1pt以上、レア役成立時1〜100pt加算",
+    benefit: "ボーナスまたはデビルゾーン当選",
+    targetMemo: "",
+    notes: "規定ポイント到達後は前兆「鉄拳ゾーン」でバトル演出により当落告知",
+  },
+  {
+    machineId: "tekken6_2026",
+    category: "リセット恩",
+    itemName: "設定変更時天井短縮",
+    thresholdRaw: "最大500pt+αに短縮（設定変更モード）",
+    triggerCondition: "設定変更",
+    benefit: "天井ポイントの短縮",
+    targetMemo: "",
+    notes: "",
+  },
+  {
+    machineId: "tekken6_2026",
+    category: "ゾーン",
+    itemName: "100pt/300pt/500ptゾーン",
+    thresholdRaw: "100pt・300pt・500pt",
+    triggerCondition: "規定ポイント到達",
+    benefit: "デビルモード以外の全モードで300ptが特に濃いゾーン",
+    targetMemo: "",
+    notes: "",
+  },
+  {
+    machineId: "tekken6_2026",
+    category: "やめ時",
+    itemName: "AT終了後の引き戻し確認",
+    thresholdRaw: "99pt以内",
+    triggerCondition: "AT終了後",
+    benefit: "引き戻し当選でAT「鉄拳RUSH」再突入",
+    targetMemo: "",
+    notes: "引き戻し中はリール周辺UIが赤く光って示唆",
+  },
+
+  // --- スマスロ とある科学の超電磁砲2 ---
+  {
+    machineId: "toaru_railgun2_2025",
+    category: "天井",
+    itemName: "ゲーム数天井",
+    thresholdRaw: "999G+α",
+    triggerCondition: "通常時ゲーム数消化",
+    benefit: "超電磁砲コイン揃い＋前兆を経てAT「超電磁砲DRIVE」当選",
+    targetMemo: "",
+    notes: "",
+  },
+  {
+    machineId: "toaru_railgun2_2025",
+    category: "リセット恩",
+    itemName: "設定変更時天井短縮",
+    thresholdRaw: "699G+αに短縮",
+    triggerCondition: "設定変更",
+    benefit: "天井ゲーム数の短縮",
+    targetMemo: "",
+    notes: "",
+  },
+  {
+    machineId: "toaru_railgun2_2025",
+    category: "ゾーン",
+    itemName: "モード別天井・500Gゾーン",
+    thresholdRaw: "通常A999G/B・C699G/D299G/E199G、AT後500G",
+    triggerCondition: "滞在モードごとの規定ゲーム数、またはAT後の500G到達",
+    benefit: "モードが浅いほど早い天井。500GゾーンはAT後期待度約40%",
+    targetMemo: "",
+    notes: "",
+  },
+  {
+    machineId: "toaru_railgun2_2025",
+    category: "やめ時",
+    itemName: "AT終了後の100Gゾーン確認",
+    thresholdRaw: "100G",
+    triggerCondition: "AT終了後",
+    benefit: "約25%でCZ天井に該当",
+    targetMemo: "",
+    notes: "高確状態（コインが成立しやすい）ならフォロー推奨",
   },
 ];
 
