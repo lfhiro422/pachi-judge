@@ -25,9 +25,9 @@ export const MachineMasterSchema = z.object({
   hasCustomPoint: z.enum(["あり", "なし"]),
   payoutSetting1: z.number().nullable(), // 0.976 のような小数。不明ならnull
   payoutSetting6: z.number().nullable(),
-  basicQuitTiming: z.string().min(1), // やめ時の一言サマリ
+  basicQuitTiming: z.string().nullable(), // やめ時の一言サマリ。不明ならnull
   lastVerifiedDate: z.string(), // 今日の日付を機械的に入れる
-  sourceMemo: z.string().min(1), // 出典サイト名の列挙（事実のみ、文章コピペ禁止）
+  sourceMemo: z.string().nullable(), // 出典サイト名の列挙（事実のみ、文章コピペ禁止）。不明ならnull
   notes: z.string().nullable(),
 });
 export type MachineMaster = z.infer<typeof MachineMasterSchema>;
@@ -69,9 +69,9 @@ export function masterToRow(m: MachineMaster): (string | number)[] {
     m.hasCustomPoint,
     m.payoutSetting1 ?? "",
     m.payoutSetting6 ?? "",
-    m.basicQuitTiming,
+    m.basicQuitTiming ?? "(要確認)",
     m.lastVerifiedDate,
-    m.sourceMemo,
+    m.sourceMemo ?? "(要確認)",
     m.notes ?? "",
   ];
 }
