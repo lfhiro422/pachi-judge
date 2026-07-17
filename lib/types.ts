@@ -57,6 +57,17 @@ export interface JudgeRequestSceneB {
 
 export type JudgeRequest = JudgeRequestSceneA | JudgeRequestSceneB;
 
+// Claude Visionが画像から読み取った「生データ」。
+// 判定理由（reason）とは切り離して独立して保持することで、
+// 「AIが何を読み違えたか」を後から検証できるようにする。
+// 判定履歴機能でもこの内容をそのまま1行として記録する想定。
+export interface RawReadData {
+  totalSpinCount: string | null; // 総回転数として読み取った値（不明ならnull）
+  gamesSinceLastHit: string | null; // 大当り後ゲーム数として読み取った値（不明ならnull）
+  currentState: "通常時" | "AT・CZ中" | "不明"; // 現在の遊技状態
+  notes: string; // 読み取りに自信が持てなかった点があれば一言（無ければ空文字）
+}
+
 export interface JudgeResult {
   judgement: Judgement;
   reason: string; // 理由（1文、初心者向けの平易な言葉で）
@@ -64,4 +75,5 @@ export interface JudgeResult {
   estimatedInvestment?: string; // 推定投資額（場面Aのみ）
   nextCheckTiming?: string; // 次の確認タイミング（場面Bのみ）
   usedVision?: boolean; // trueならClaude Vision APIが画像を読み取って判定した。falseなら手入力によるルールベース判定
+  rawReadData?: RawReadData; // Vision APIが読み取った生データ（usedVision=trueの場合のみ存在）
 }

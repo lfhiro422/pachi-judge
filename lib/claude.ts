@@ -5,6 +5,7 @@ import {
   Judgement,
   MachineMaster,
   MachineRuleDetail,
+  RawReadData,
 } from "./types";
 
 // ------------------------------------------------------------------
@@ -17,6 +18,14 @@ import {
 //   Claudeに担わせるのは次の2つだけ:
 //     ① 写真から現在のゲーム数・内部状態の示唆を読み取る
 //     ② 与えられたルールデータと読み取った状況を突き合わせて GO/STAY/STOP を判定する
+//
+// 2026-07-17 追記:
+//   実機写真での検証で、「総回転数」（設置後の通算回転数）と
+//   「大当り後ゲーム数」（天井・ゾーン判定に使うべき数値）を取り違えたり、
+//   「大当り後ゲーム数」が小さい値なのに通常時をAT中と誤判定する事例が確認された。
+//   これを受けて、カウンターの種類を明確に区別させる指示と、
+//   読み取った生データ（rawReadData）をJSON出力に独立項目として追加した。
+//   これにより判定履歴に「AIが何を読み違えたか」を残せるようにしている。
 // ------------------------------------------------------------------
 
 const SYSTEM_PROMPT = `あなたはパチスロの台の状況を判定するアシスタントです。
@@ -26,18 +35,36 @@ const SYSTEM_PROMPT = `あなたはパチスロの台の状況を判定するア
    「機種ルールデータ」に書かれている内容だけを使ってください。
    あなたが一般知識として知っている当該機種の情報は絶対に使わないでください。
    ルールデータに書かれていない数値を推測で埋めないでください。
-2. 添付された画像から、以下を読み取ってください。
-   - 現在のゲーム数、または機種固有のカウンター（「あべし」等、ルールデータに
-     単位が明記されている場合はその単位に従う）
-   - 天国示唆・モード示唆など、画面や台に表示されている内部状態の手がかり
-   画像から読み取れない場合は、無理に数値を作らず「不明」として保守的に判定してください。
-3. 場面A（着席前判定）では GO / STAY / STOP のいずれか、
+
+2. 添付された画像には、複数の異なるカウンターが表示されていることがあります。
+   必ず種類を区別して読み取ってください。混同は絶対に避けてください。
+   - 「総回転数」「総ゲーム数」（設置後や当日の通算回転数。これは天井カウントには使わない）
+   - 「大当り後ゲーム数」「スタートからのゲーム数」「G数」（直近の当り・リセットからの
+     経過ゲーム数。天井やゾーン狙いの判定は、原則としてこちらを使う）
+   - 「前日」「2日前」等のラベルが付いた実績データ（過去の履歴であり、
+     現在の状況判定には使わない）
+   画像のどのラベルに対応する数値かを明確に読み取れない場合、無理に対応付けず
+   「不明」としてください。
+
+3. 現在の遊技状態（通常時／AT・CZ中など）は、画面上の状態表示・残りゲーム数表示・
+   出玉推移などから慎重に判断してください。「大当り後ゲーム数」が0に近い小さな値で
+   あれば、AT・CZ中ではなく通常時である可能性が高いことを踏まえて判断してください。
+   確信が持てない場合は「不明」としてください。
+
+4. 場面A（着席前判定）では GO / STAY / STOP のいずれか、
    場面B（やめ時判定）では STAY / STOP のいずれかを出力してください（場面BではGOは使いません）。
-4. 出力は必ず次のJSON形式のみで返してください。前置きや説明文、Markdownのコードフェンスは一切不要です。
+
+5. 出力は必ず次のJSON形式のみで返してください。前置きや説明文、Markdownのコードフェンスは一切不要です。
 {
   "judgement": "GO" | "STAY" | "STOP",
   "reason": "初心者にもわかる平易な言葉で1文",
   "referencedRule": "ルールデータのどの項目を根拠にしたか（項目名を含める）",
+  "rawReadData": {
+    "totalSpinCount": "総回転数として読み取った値（不明ならnull）",
+    "gamesSinceLastHit": "大当り後ゲーム数として読み取った値（不明ならnull）",
+    "currentState": "通常時" | "AT・CZ中" | "不明",
+    "notes": "読み取りに自信が持てなかった点があれば一言。無ければ空文字"
+  },
   "estimatedInvestment": "場面Aのみ。不明な場合は「不明」と明記",
   "nextCheckTiming": "場面Bのみ。STAYの場合、次に何を確認すべきか"
 }`;
@@ -78,6 +105,23 @@ ${sceneText}
 添付した画像を見て、判定結果をJSON形式のみで返してください。`;
 }
 
+function parseRawReadData(raw: unknown): RawReadData | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const r = raw as Record<string, unknown>;
+  const currentState =
+    r.currentState === "通常時" || r.currentState === "AT・CZ中"
+      ? r.currentState
+      : "不明";
+  return {
+    totalSpinCount:
+      typeof r.totalSpinCount === "string" ? r.totalSpinCount : null,
+    gamesSinceLastHit:
+      typeof r.gamesSinceLastHit === "string" ? r.gamesSinceLastHit : null,
+    currentState,
+    notes: typeof r.notes === "string" ? r.notes : "",
+  };
+}
+
 function parseJudgeResponse(
   text: string,
   scene: "A" | "B"
@@ -87,6 +131,7 @@ function parseJudgeResponse(
     judgement: string;
     reason: string;
     referencedRule: string;
+    rawReadData?: unknown;
     estimatedInvestment?: string;
     nextCheckTiming?: string;
   };
@@ -104,6 +149,7 @@ function parseJudgeResponse(
     estimatedInvestment: scene === "A" ? parsed.estimatedInvestment : undefined,
     nextCheckTiming: scene === "B" ? parsed.nextCheckTiming : undefined,
     usedVision: true,
+    rawReadData: parseRawReadData(parsed.rawReadData),
   };
 }
 

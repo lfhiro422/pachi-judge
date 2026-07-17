@@ -44,9 +44,9 @@ const SYSTEM_PROMPT = `あなたはパチスロ機種の攻略データを構造
     "hasCustomPoint": "あり" | "なし",
     "payoutSetting1": 0.976 のような小数、不明ならnull,
     "payoutSetting6": 0.976 のような小数、不明ならnull,
-    "basicQuitTiming": "やめ時の一言サマリ",
+    "basicQuitTiming": "やめ時の一言サマリ。入力に手がかりがなければnull",
     "lastVerifiedDate": "YYYY-MM-DD 形式（今日の日付）",
-    "sourceMemo": "参照したサイト名の列挙（例: 1geki.jp / slogati.com）",
+    "sourceMemo": "参照したサイト名の列挙（例: 1geki.jp / slogati.com）。入力に手がかりがなければnull",
     "notes": "機種特有の注意点。なければnull"
   },
   "rules": [
