@@ -1,8 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
-import { JudgeRequest } from "@/lib/types";
+import { JudgeRequest, JudgeResult } from "@/lib/types";
 import { judge } from "@/lib/judge-engine";
 import { getRuleDetails, getMachineMaster } from "@/lib/machines-data";
 import { judgeWithClaudeVision } from "@/lib/claude";
+import { appendJudgeHistory } from "@/lib/sheets";
+import { MachineMaster } from "@/lib/types";
+
+// 判定履歴の記録を試みる。失敗しても判定結果の返却自体は妨げない
+// （スプレッドシート書き込みの失敗が、肝心の判定機能を止めてしまわないための安全弁）。
+async function recordHistorySafely(
+  body: JudgeRequest,
+  result: JudgeResult,
+  master: MachineMaster | undefined
+) {
+  try {
+    await appendJudgeHistory(body, result, master);
+  } catch (err) {
+    console.error("appendJudgeHistory failed (judge result is unaffected):", err);
+  }
+}
 
 export async function POST(req: NextRequest) {
   let body: JudgeRequest;
@@ -32,6 +48,7 @@ export async function POST(req: NextRequest) {
   if (process.env.ANTHROPIC_API_KEY && body.imageBase64) {
     try {
       const result = await judgeWithClaudeVision(body, ruleDetails, master);
+      await recordHistorySafely(body, result, master);
       return NextResponse.json(result);
     } catch (err) {
       console.error("Claude Vision judge failed, falling back to rule engine:", err);
@@ -39,5 +56,7 @@ export async function POST(req: NextRequest) {
   }
 
   const result = judge(body);
-  return NextResponse.json({ ...result, usedVision: false });
+  const resultWithVisionFlag: JudgeResult = { ...result, usedVision: false };
+  await recordHistorySafely(body, resultWithVisionFlag, master);
+  return NextResponse.json(resultWithVisionFlag);
 }

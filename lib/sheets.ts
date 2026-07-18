@@ -3,10 +3,19 @@
  * Google Sheets API を使った読み書き処理
  */
 import { google } from "googleapis";
-import { MachineMaster, MachineRuleDetail } from "./types";
+import {
+  JudgeRequest,
+  JudgeResult,
+  MachineMaster,
+  MachineRuleDetail,
+} from "./types";
 import { machineMasters, machineRuleDetails } from "./machines-data";
 
 const SPREADSHEET_ID = process.env.GOOGLE_SHEETS_SPREADSHEET_ID!;
+
+// 判定履歴を記録するシート名。スプレッドシート本体に、この名前のシートを
+// 事前に作成しておく必要がある（ヘッダー行は任意。無くても追記自体は動作する）。
+const JUDGE_HISTORY_SHEET_NAME = "判定履歴";
 
 function getSheetsClient() {
   const auth = new google.auth.JWT({
@@ -19,7 +28,7 @@ function getSheetsClient() {
 
 /**
  * 指定シートの末尾に行を追記する
- * @param sheetName "機種マスタ" | "機種ルール詳細"
+ * @param sheetName "機種マスタ" | "機種ルール詳細" | "判定履歴"
  * @param rows 1行 = 1配列。複数行まとめて渡せる
  */
 export async function appendRows(
@@ -49,6 +58,44 @@ export async function machineIdExists(machineId: string): Promise<boolean> {
   });
   const rows = res.data.values ?? [];
   return rows.some((row) => row[0] === machineId);
+}
+
+// ------------------------------------------------------------------
+// 判定履歴の自動記録
+//
+// 目的: 判定のたびに「判定履歴」シートへ1行追記し、単発のホール訪問ではなく
+//       継続的なデータ蓄積によって判定ロジックの精度を検証できるようにする。
+// 列構成: 日時 / 機種名 / 場面 / 判定結果 / 判定理由 / 参照したルール /
+//         総回転数(AI読取) / 大当り後ゲーム数(AI読取) / 現在の状態(AI読取) /
+//         AIが写真を読み取ったか / 結果(空欄。後でホールで確認した実際の結果を手入力)
+//
+// 呼び出し側（app/api/judge/route.ts）は、この関数の失敗が判定結果の返却
+// 自体を妨げないよう、必ずtry/catchで囲んで呼び出すこと。
+// ------------------------------------------------------------------
+export async function appendJudgeHistory(
+  request: JudgeRequest,
+  result: JudgeResult,
+  master: MachineMaster | undefined
+): Promise<void> {
+  const timestamp = new Date().toLocaleString("ja-JP", {
+    timeZone: "Asia/Tokyo",
+  });
+
+  const row: (string | number)[] = [
+    timestamp,
+    master?.machineName ?? request.machineId,
+    request.scene,
+    result.judgement,
+    result.reason,
+    result.referencedRule,
+    result.rawReadData?.totalSpinCount ?? "",
+    result.rawReadData?.gamesSinceLastHit ?? "",
+    result.rawReadData?.currentState ?? "",
+    result.usedVision ? "はい" : "いいえ",
+    "", // 結果（後でホールで確認した実際の結果を手入力する列。今は空欄）
+  ];
+
+  await appendRows(JUDGE_HISTORY_SHEET_NAME, [row]);
 }
 
 // --- 以下、実際にGoogle Sheetsから読み込む処理 ---
