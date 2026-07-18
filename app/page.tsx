@@ -421,6 +421,46 @@ export default function Home() {
                   <p className="text-gray-400">参照したルール</p>
                   <p className="text-gray-800 text-xs">{result.referencedRule}</p>
                 </div>
+
+                {/*
+                  AIが画像から読み取った「生データ」の表示。
+                  判定理由（reason）とは切り離して、実機の表示と直接見比えられるようにする。
+                  総回転数と大当り後ゲーム数の取り違え、AT中/通常時の誤判定を
+                  ユーザー自身がその場で気づけるようにするための表示（2026-07-17追加）。
+                */}
+                {result.usedVision && result.rawReadData && (
+                  <div className="border border-amber-200 bg-amber-50 rounded-xl p-4 flex flex-col gap-2">
+                    <p className="text-xs font-semibold text-amber-800">
+                      AIが画像から読み取った数値（実機の表示と見比えてください）
+                    </p>
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
+                      <div>
+                        <p className="text-amber-700">総回転数</p>
+                        <p className="text-gray-800 font-medium">
+                          {result.rawReadData.totalSpinCount ?? "読み取れず"}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-amber-700">大当り後ゲーム数</p>
+                        <p className="text-gray-800 font-medium">
+                          {result.rawReadData.gamesSinceLastHit ?? "読み取れず"}
+                        </p>
+                      </div>
+                      <div className="col-span-2">
+                        <p className="text-amber-700">現在の状態</p>
+                        <p className="text-gray-800 font-medium">
+                          {result.rawReadData.currentState}
+                        </p>
+                      </div>
+                    </div>
+                    {result.rawReadData.notes && (
+                      <p className="text-xs text-amber-700 border-t border-amber-200 pt-2">
+                        {result.rawReadData.notes}
+                      </p>
+                    )}
+                  </div>
+                )}
+
                 {result.estimatedInvestment && (
                   <div>
                     <p className="text-gray-400">推定投資額</p>
