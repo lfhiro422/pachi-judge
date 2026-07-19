@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { JudgeRequest, JudgeResult } from "@/lib/types";
 import { judge } from "@/lib/judge-engine";
-import { getRuleDetails, getMachineMaster } from "@/lib/machines-data";
 import { judgeWithClaudeVision } from "@/lib/claude";
-import { appendJudgeHistory } from "@/lib/sheets";
+import {
+  appendJudgeHistory,
+  fetchMachineMasters,
+  fetchMachineRuleDetails,
+} from "@/lib/sheets";
 import { MachineMaster } from "@/lib/types";
 
 // 判定履歴の記録を試みる。失敗しても判定結果の返却自体は妨げない
@@ -32,7 +35,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "machineId は必須です" }, { status: 400 });
   }
 
-  const ruleDetails = getRuleDetails(body.machineId);
+  // 【修正】以前はコード内ハードコードのlib/machines-data.tsを参照していたため、
+  // /admin/add-machineでスプレッドシートに追加した新機種が判定に反映されない
+  // 不具合があった。fetchMachineRuleDetails/fetchMachineMastersでスプレッドシート
+  // を都度取得するように変更（取得失敗時はsheets.ts内部でmachines-data.tsに自動フォールバック）。
+  const allRuleDetails = await fetchMachineRuleDetails();
+  const ruleDetails = allRuleDetails.filter((r) => r.machineId === body.machineId);
   if (ruleDetails.length === 0) {
     return NextResponse.json(
       { error: "この機種のルール詳細がスプレッドシートに見つかりません" },
@@ -40,7 +48,8 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const master = getMachineMaster(body.machineId);
+  const allMachineMasters = await fetchMachineMasters();
+  const master = allMachineMasters.find((m) => m.machineId === body.machineId);
 
   // ANTHROPIC_API_KEY が設定されていて、かつ画像が送られてきた場合は
   // Claude Vision APIによる本判定を試みる。失敗した場合は手入力ベースの
