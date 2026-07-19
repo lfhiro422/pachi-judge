@@ -40,7 +40,8 @@ export const MachineRuleSchema = z.object({
   machineName: z.string(),
   category: z.enum(["天井", "ゾーン", "独自pt", "リセット恩恵", "やめ時"]),
   itemName: z.string().min(1),
-  thresholdValue: z.string().min(1), // 数値レンジは文字列表現のまま保持（例: "1268G+α"）
+  thresholdValue: z.string().nullable(), // 数値レンジは文字列表現のまま保持（例: "1268G+α"）。
+  // 「やめ時」など数値のしきい値概念がない項目ではAIがnullを返すことがあるため許容する。
   triggerCondition: z.string().min(1),
   benefit: z.string().min(1),
   targetMemo: z.string().nullable(),
@@ -83,7 +84,7 @@ export function ruleToRow(r: MachineRule): (string | number)[] {
     r.machineName,
     r.category,
     r.itemName,
-    r.thresholdValue,
+    r.thresholdValue ?? "(該当なし)",
     r.triggerCondition,
     r.benefit,
     r.targetMemo ?? "",
