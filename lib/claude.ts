@@ -115,7 +115,26 @@ const SYSTEM_PROMPT = `あなたはパチスロの台の状況を判定するア
 6. 場面A（着席前判定）では GO / STAY / STOP のいずれか、
    場面B（やめ時判定）では STAY / STOP のいずれかを出力してください（場面BではGOは使いません）。
 
-7. 出力は必ず次のJSON形式のみで返してください。前置きや説明文、Markdownのコードフェンスは一切不要です。
+7. actionPlan（具体的な立ち回り指示）を、次の内容で作成してください。
+   - 場面Aで GO の場合: 参照したルールデータの天井・ゾーンのしきい値と、
+     現在のゲーム数（gamesSinceLastHitとして読み取った値）の差を計算し、
+     次のゾーン・天井の到達目安ゲーム数と、それまでの推定投資額を明記する。
+   - 場面Aで STAY の場合: 様子を見る価値があるとすれば次の到達目安
+     （ゾーン・天井のゲーム数）を明記し、そこまでに当たらなければ撤退が
+     目安である旨を書く。
+   - 場面Aで STOP の場合: なぜ現時点で追う根拠がないかを一言添える。
+   - 場面Bの場合: 既存のnextCheckTimingの内容と重複してよい。STAYなら
+     次に確認すべきゲーム数の目安、STOPなら退店を推奨する旨を書く。
+   最重要の制約として、actionPlanで使うゲーム数・金額の計算は、必ず
+   ユーザーメッセージ内の「機種ルールデータ」に書かれている天井・ゾーンの
+   数値と、画像から読み取った現在のゲーム数「だけ」を根拠にしてください。
+   機種の一般知識（相場観・体感的な狙い目など）を使って数値を作ることは
+   ルール1に反するため絶対に禁止します。参照できる具体的なしきい値が
+   ルールデータに無い場合は、無理に数値を出さず「具体的な目安なし。
+   ○○が根拠不足のため判断できません」のように、何が根拠不足なのかを
+   明記して正直に書いてください。
+
+8. 出力は必ず次のJSON形式のみで返してください。前置きや説明文、Markdownのコードフェンスは一切不要です。
 {
   "judgement": "GO" | "STAY" | "STOP",
   "reason": "初心者にもわかる平易な言葉で1文",
@@ -127,7 +146,8 @@ const SYSTEM_PROMPT = `あなたはパチスロの台の状況を判定するア
     "notes": "読み取りに自信が持てなかった点があれば一言。無ければ空文字"
   },
   "estimatedInvestment": "場面Aのみ。不明な場合は「不明」と明記",
-  "nextCheckTiming": "場面Bのみ。STAYの場合、次に何を確認すべきか"
+  "nextCheckTiming": "場面Bのみ。STAYの場合、次に何を確認すべきか",
+  "actionPlan": "ルール7の内容に従って作成した、具体的な立ち回り指示"
 }`;
 
 function buildUserPrompt(
@@ -195,6 +215,7 @@ function parseJudgeResponse(
     rawReadData?: unknown;
     estimatedInvestment?: string;
     nextCheckTiming?: string;
+    actionPlan?: string;
   };
 
   const validJudgements: Judgement[] =
@@ -209,6 +230,7 @@ function parseJudgeResponse(
     referencedRule: parsed.referencedRule || "-",
     estimatedInvestment: scene === "A" ? parsed.estimatedInvestment : undefined,
     nextCheckTiming: scene === "B" ? parsed.nextCheckTiming : undefined,
+    actionPlan: parsed.actionPlan || undefined,
     usedVision: true,
     rawReadData: parseRawReadData(parsed.rawReadData),
   };
@@ -264,7 +286,7 @@ export async function identifyMachineFromImage(
     .join("\n");
 
   const message = await anthropic.messages.create({
-    model: "claude-sonnet-4-6",
+    model: "claude-haiku-4-5-20251001",
     max_tokens: 300,
     system: IDENTIFY_SYSTEM_PROMPT,
     messages: [

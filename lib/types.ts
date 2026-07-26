@@ -74,6 +74,7 @@ export interface JudgeResult {
   referencedRule: string; // 参照したルール（機種ルール詳細のどの行を根拠にしたか）
   estimatedInvestment?: string; // 推定投資額（場面Aのみ）
   nextCheckTiming?: string; // 次の確認タイミング（場面Bのみ）
+  actionPlan?: string; // 具体的な立ち回り指示（あと何Gまで様子を見る/追いかけるか、投資上限の目安など）。場面A・B共通
   usedVision?: boolean; // trueならClaude Vision APIが画像を読み取って判定した。falseなら手入力によるルールベース判定
   rawReadData?: RawReadData; // Vision APIが読み取った生データ（usedVision=trueの場合のみ存在）
 }

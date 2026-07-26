@@ -473,6 +473,12 @@ export default function Home() {
                     <p className="text-gray-800">{result.nextCheckTiming}</p>
                   </div>
                 )}
+                {result.actionPlan && (
+                  <div>
+                    <p className="text-gray-400">今後の立ち回り</p>
+                    <p className="text-gray-800">{result.actionPlan}</p>
+                  </div>
+                )}
               </div>
             </div>
           )}
