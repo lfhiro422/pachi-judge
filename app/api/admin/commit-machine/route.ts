@@ -13,6 +13,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { ExtractedMachineSchema, masterToRow, ruleToRow } from "@/lib/machine-schema";
 import { appendRows, machineIdExists } from "@/lib/sheets";
 
+// Google Sheets APIへの複数回の通信を含むため、タイムアウト対策として延長。
+export const maxDuration = 60;
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();

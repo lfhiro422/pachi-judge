@@ -9,6 +9,11 @@ import {
 } from "@/lib/sheets";
 import { MachineMaster } from "@/lib/types";
 
+// Claude Vision APIとGoogle Sheets APIへの複数回の通信を含むため、
+// Vercelのデフォルトタイムアウト（Hobbyプランの標準設定は短め）では
+// 実機テスト中に「通信が不安定です」というタイムアウトが発生していた。
+export const maxDuration = 60;
+
 // 判定履歴の記録を試みる。失敗しても判定結果の返却自体は妨げない
 // （スプレッドシート書き込みの失敗が、肝心の判定機能を止めてしまわないための安全弁）。
 async function recordHistorySafely(

@@ -16,6 +16,9 @@ import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { ExtractedMachineSchema } from "@/lib/machine-schema";
 
+// Claude APIへの通信を含むため、タイムアウト対策として延長。
+export const maxDuration = 60;
+
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 const SYSTEM_PROMPT = `あなたはパチスロ機種の攻略データを構造化するアシスタントです。

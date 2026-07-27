@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { fetchMachineMasters } from "@/lib/sheets";
 import { identifyMachineFromImage } from "@/lib/claude";
 
+// Claude APIとGoogle Sheets APIへの通信を含むため、タイムアウト対策として延長。
+export const maxDuration = 60;
+
 export async function POST(req: NextRequest) {
   const body = await req.json();
   const { imageBase64, imageMediaType } = body as {
