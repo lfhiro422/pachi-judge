@@ -62,13 +62,15 @@ export default function Home() {
     try {
       const compressed = await compressImageToBase64(file, 1600, 0.8);
       setCompressedImage(compressed);
-      const res = await fetch("/api/identify-machine", {
+      const res = await fetchWithRetry("/api/identify-machine", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           imageBase64: compressed.base64,
           imageMediaType: compressed.mediaType,
         }),
+        // 機種自動認識はHaikuモデルによる軽量処理のため、判定本体より短めのタイムアウトで十分
+        timeoutMs: 20000,
       });
       if (res.ok) {
         const data = (await res.json()) as {
@@ -155,7 +157,9 @@ export default function Home() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
         retries: 2,
-        timeoutMs: 15000,
+        // サーバー側のmaxDuration(60秒)よりわずかに短くし、サーバーがタイムアウトする前に
+        // クライアント側が先に諦めて再試行できるようにする
+        timeoutMs: 55000,
         onRetry: (attempt) => setRetryNotice(`通信が不安定です。再試行しています…（${attempt}回目）`),
       });
 
@@ -167,7 +171,7 @@ export default function Home() {
       setResult(data);
     } catch (err) {
       if (err instanceof FetchTimeoutError) {
-        setJudgeError("通信がタイムアウトしました。電波の良い場所で「再試行」を押してください。");
+        setJudgeError("通信に時間がかかっています。もう一度お試しいただくか、電波の良い場所でお試しください。");
       } else if (err instanceof Error) {
         setJudgeError(`通信エラーが発生しました：${err.message}`);
       } else {

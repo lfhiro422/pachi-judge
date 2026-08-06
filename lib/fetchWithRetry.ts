@@ -10,7 +10,7 @@ export class FetchTimeoutError extends Error {
 
 export interface FetchWithRetryOptions extends RequestInit {
   retries?: number; // 最大リトライ回数（初回含まず。デフォルト2 = 最大3回試行）
-  timeoutMs?: number; // 1回あたりのタイムアウト（デフォルト15秒）
+  timeoutMs?: number; // 1回あたりのタイムアウト（デフォルト20秒。呼び出し側でサーバー側のmaxDurationに合わせて個別指定することを推奨）
   onRetry?: (attempt: number, error: unknown) => void; // リトライ時にUIへ通知するためのフック
 }
 
@@ -18,7 +18,7 @@ export async function fetchWithRetry(
   url: string,
   options: FetchWithRetryOptions = {}
 ): Promise<Response> {
-  const { retries = 2, timeoutMs = 15000, onRetry, ...init } = options;
+  const { retries = 2, timeoutMs = 20000, onRetry, ...init } = options;
 
   let lastError: unknown;
 
